@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Image, SafeAreaView } from "react-native";
-import MapView, { Polyline } from "react-native-maps";
+import MapView, { Polyline, Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import polyline from "@mapbox/polyline";
 import BackendServiceSingleton from "../../services/BackendServiceSingleton";
-import { BackendService } from "../../services/BackendService";
+import { BackendService, backendEvents } from "../../services/BackendService";
 import { styles } from "../../styles/map";
 
 const locationIcon = require("../../assets/images/userLocation.png");
@@ -24,6 +24,7 @@ const Map = () => {
     heading: undefined,
   });
   const [routeCoords, setRouteCoords] = useState(BUS_POINTS);
+  const [busStops, setBusStops] = useState<{ latitude: number; longitude: number; stopID: number; stopName: string }[]>([]);
   const mapRef = useRef<MapView>(null);
   const backendServiceRef = useRef<BackendService | null>(null);
   const hasConnectedRef = useRef(false);
@@ -95,6 +96,12 @@ const Map = () => {
     }
   };
 
+  useEffect(() => {
+    const onBusStops = (stops: { latitude: number; longitude: number; stopID: number; stopName: string }[]) => setBusStops(stops);
+    backendEvents.on("busStops", onBusStops);
+    return () => { backendEvents.off("busStops", onBusStops); };
+  }, []);
+
   if (!userLocation.latitude && !userLocation.longitude) {
     return <Text>Loading...</Text>;
   }
@@ -120,6 +127,14 @@ const Map = () => {
             strokeColor="#007AFF"
             strokeWidth={5}
           />
+          {busStops.map(stop => (
+            <Marker
+              key={stop.stopID}
+              coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
+              title={stop.stopName}
+              description={`Stop ID: ${stop.stopID}`}
+            />
+          ))}
         </MapView>
         <TouchableOpacity style={styles.locationButton} onPress={centerMapOnUser}>
           <Image source={locationIcon} style={styles.buttonIcon} />

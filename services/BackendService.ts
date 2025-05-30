@@ -1,5 +1,9 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState } from "@microsoft/signalr";
 import * as Location from "expo-location";
+import { useState } from "react";
+import EventEmitter from "eventemitter3";
+
+export const backendEvents = new EventEmitter();
 
 export class BackendService {
     private signalRConnection?: HubConnection;
@@ -28,6 +32,7 @@ export class BackendService {
                 }
                 const location = await Location.getCurrentPositionAsync({});
                 this.sendLocation(location.coords.latitude, location.coords.longitude);
+                this.getStops();
                 console.log(`Sending actual location: ${location.coords.latitude}, ${location.coords.longitude}`);
             } catch (err) {
                 console.error("Failed to get user location:", err);
@@ -44,6 +49,17 @@ export class BackendService {
 
         this.signalRConnection.on("Error", (errorMessage) => {
             console.error(`Server error: ${errorMessage}`);
+        });
+
+        this.signalRConnection.on("ReceivePoints", (message) => {
+            console.log("ReceivePoints message:", message, typeof message);
+            try {
+                // If message is a string, parse it. If it's already an object/array, use it directly.
+                const stops = typeof message === "string" ? JSON.parse(message) : message;
+                backendEvents.emit("busStops", stops);
+            } catch (err) {
+                console.error("Failed to parse bus stops:", err);
+            }
         });
 
         this.startConnection();
@@ -68,6 +84,14 @@ export class BackendService {
         }
     }
 
+    public async getStops() {
+        if (this.signalRConnection?.state === HubConnectionState.Connected) {
+            return this.signalRConnection.invoke("GetStops");
+        } else {
+            throw new Error("SignalR connection not established");
+        }
+    }
+
     public async sendFeedback(email: string, message: string) {
         if (this.signalRConnection?.state === HubConnectionState.Connected) {
             if (!message.trim()) {
@@ -83,3 +107,7 @@ export class BackendService {
         return this.signalRConnection?.state === HubConnectionState.Connected;
     }
 }
+
+const [busStops, setBusStops] = useState<
+  { latitude: number; longitude: number; stopID: number; stopName: string }[]
+>([]);
