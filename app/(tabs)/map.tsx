@@ -1,21 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Image, SafeAreaView } from "react-native";
-import MapView, { Polyline, Marker } from "react-native-maps";
+import React, { useEffect, useRef, useState } from "react";
+import { View, SafeAreaView, TouchableOpacity, Image, Text, Modal } from "react-native";
+import MapView, { Marker, Polyline, Callout, CalloutSubview } from "react-native-maps";
+import { styles } from "../../styles/map";
+import BackendServiceSingleton from "../../services/BackendServiceSingleton";
+import { BackendService, backendEvents, latestBusStops, BusStop, RouteEntity } from "../../services/BackendService";
 import * as Location from "expo-location";
 import polyline from "@mapbox/polyline";
-import BackendServiceSingleton from "../../services/BackendServiceSingleton";
-import { BackendService, backendEvents } from "../../services/BackendService";
-import { styles } from "../../styles/map";
 
 const locationIcon = require("../../assets/images/userLocation.png");
-
-const BUS_POINTS = [
-  { latitude: 40.204206, longitude: 44.550423 },
-  { latitude: 40.202884, longitude: 44.546994 },
-  { latitude: 40.203278, longitude: 44.542955 },
-];
-
-const GOOGLE_MAPS_APIKEY = "AIzaSyDDMguZH_L6rdJSmKVeLpjRCmODGE2FuQw"; // <-- Replace with your API key
 
 const Map = () => {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number; heading?: number }>({
@@ -23,20 +15,25 @@ const Map = () => {
     longitude: 0,
     heading: undefined,
   });
-  const [routeCoords, setRouteCoords] = useState(BUS_POINTS);
-  const [busStops, setBusStops] = useState<{ latitude: number; longitude: number; stopID: number; stopName: string }[]>([]);
+  const [routePoints, setRoutePoints] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [busStops, setBusStops] = useState<BusStop[]>([]);
+  const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const mapRef = useRef<MapView>(null);
   const backendServiceRef = useRef<BackendService | null>(null);
-  const hasConnectedRef = useRef(false);
 
   useEffect(() => {
+    // Connect to backend as soon as component mounts
+    backendServiceRef.current = BackendServiceSingleton.getInstance();
+    backendServiceRef.current.createConnection();
+
+    // Start location tracking
     const startLocationTracking = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         console.log("Permission to access location was denied");
         return;
       }
-
       await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
@@ -49,40 +46,46 @@ const Map = () => {
             longitude: location.coords.longitude,
             heading: location.coords.heading ?? undefined,
           });
-
-          // Connect and send location only once
-          if (!hasConnectedRef.current) {
-            backendServiceRef.current = BackendServiceSingleton.getInstance();
-            backendServiceRef.current.createConnection(); // No location arguments
-            hasConnectedRef.current = true;
-          }
         }
       );
     };
 
     startLocationTracking();
-    setRouteCoords(BUS_POINTS); // Just use your points directly
+
+    // Subscribe to busStops event
+    const handler = (stops: BusStop[]) => {
+      setBusStops(stops);
+    };
+    backendEvents.on("busStops", handler);
+
+    // Immediately set stops if already available
+    if (latestBusStops && latestBusStops.length > 0) {
+      setBusStops(latestBusStops);
+    }
+
+    // Request stops on mount
+    BackendServiceSingleton.getInstance().getStops?.();
+
+    return () => {
+      backendEvents.off("busStops", handler);
+    };
   }, []);
 
-  // Fetch route from Google Directions API
-  const fetchBusRoute = async () => {
-    const origin = `${BUS_POINTS[0].latitude},${BUS_POINTS[0].longitude}`;
-    const destination = `${BUS_POINTS[2].latitude},${BUS_POINTS[2].longitude}`;
-    const waypoints = `${BUS_POINTS[1].latitude},${BUS_POINTS[1].longitude}`;
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&waypoints=${waypoints}&key=${GOOGLE_MAPS_APIKEY}`;
+  useEffect(() => {
+    const handleRoutePoints = (points: any) => {
+      const parsed = typeof points === "string" ? JSON.parse(points) : points;
+      const coords = parsed.map((p: any) => ({
+        latitude: Number(p.latitude),
+        longitude: Number(p.longitude),
+      }));
+      setRoutePoints(coords);
+    };
+    backendEvents.on("routePoints", handleRoutePoints);
 
-    try {
-      const response = await fetch(url);
-      const data = await response.json();
-      if (data.routes.length) {
-        const points = polyline.decode(data.routes[0].overview_polyline.points);
-        const coords = points.map(([latitude, longitude]: [number, number]) => ({ latitude, longitude }));
-        setRouteCoords(coords);
-      }
-    } catch (err) {
-      console.error("Failed to fetch bus route:", err);
-    }
-  };
+    return () => {
+      backendEvents.off("routePoints", handleRoutePoints);
+    };
+  }, []);
 
   const centerMapOnUser = () => {
     if (userLocation && mapRef.current) {
@@ -95,12 +98,6 @@ const Map = () => {
       });
     }
   };
-
-  useEffect(() => {
-    const onBusStops = (stops: { latitude: number; longitude: number; stopID: number; stopName: string }[]) => setBusStops(stops);
-    backendEvents.on("busStops", onBusStops);
-    return () => { backendEvents.off("busStops", onBusStops); };
-  }, []);
 
   if (!userLocation.latitude && !userLocation.longitude) {
     return <Text>Loading...</Text>;
@@ -116,29 +113,89 @@ const Map = () => {
           rotateEnabled={true}
           pitchEnabled={false}
           initialRegion={{
-            latitude: userLocation.latitude,
-            longitude: userLocation.longitude,
-            latitudeDelta: 0.00522,
-            longitudeDelta: 0.00021,
+            latitude: 41.0956,      // Alaverdi latitude
+            longitude: 44.6616,     // Alaverdi longitude
+            latitudeDelta: 0.03,    // Adjust zoom as needed
+            longitudeDelta: 0.03,
           }}
         >
-          <Polyline
-            coordinates={routeCoords}
-            strokeColor="#007AFF"
-            strokeWidth={5}
-          />
+          {routePoints.length > 1 && (
+            <Polyline
+              coordinates={routePoints}
+              strokeColor="#FF5733" // or any color you like
+              strokeWidth={5}
+            />
+          )}
           {busStops.map(stop => (
             <Marker
               key={stop.stopID}
               coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-              title={stop.stopName}
-              description={`Stop ID: ${stop.stopID}`}
-            />
+              onPress={() => {
+                setSelectedStop(stop);
+                setModalVisible(true);
+              }}
+            >
+              <Image
+                source={require("../../assets/images/busStop.png")}
+                style={{ width: 20, height: 20, resizeMode: "contain" }}
+              />
+            </Marker>
           ))}
         </MapView>
+        <TouchableOpacity
+          style={[styles.locationButton, { bottom: 80 }]}
+          onPress={() => {
+            BackendServiceSingleton.getInstance().getStops?.();
+          }}
+        >
+          <Text style={{fontSize: 24}}>⟳</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.locationButton} onPress={centerMapOnUser}>
           <Image source={locationIcon} style={styles.buttonIcon} />
         </TouchableOpacity>
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0008" }}>
+            <View style={{ backgroundColor: "#fff", borderRadius: 10, padding: 20, minWidth: 250 }}>
+              <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 10 }}>
+                {selectedStop?.stopName}
+              </Text>
+              {(selectedStop?.routes ?? []).length === 0 ? (
+                <Text style={{ color: "#888" }}>No routes</Text>
+              ) : (
+                selectedStop?.routes.map((route, idx, arr) => (
+                  <TouchableOpacity
+                    key={route.routeID ?? idx}
+                    onPress={() => {
+                      setModalVisible(false);
+                      console.log("Clicked route:", route.routeID);
+                      backendServiceRef.current?.demandRoute(route.routeID)
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 6,
+                      backgroundColor: "#f5f5f5",
+                      borderRadius: 6,
+                      marginBottom: idx < arr.length - 1 ? 8 : 0,
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 16 }}>
+                      Համար: {route.routeNum ?? route.routeID ?? "?"} {route.startHour ?? "N/A"} - {route.endHour ?? "N/A"}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginTop: 16 }}>
+                <Text style={{ color: "#007AFF", fontWeight: "bold" }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );

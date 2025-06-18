@@ -1,6 +1,5 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState } from "@microsoft/signalr";
 import * as Location from "expo-location";
-import { useState } from "react";
 import EventEmitter from "eventemitter3";
 
 export const backendEvents = new EventEmitter();
@@ -31,16 +30,13 @@ export class BackendService {
                     return;
                 }
                 const location = await Location.getCurrentPositionAsync({});
+                // Send location ONCE when connected:
                 this.sendLocation(location.coords.latitude, location.coords.longitude);
                 this.getStops();
-                console.log(`Sending actual location: ${location.coords.latitude}, ${location.coords.longitude}`);
+                console.log(`Got actual location: ${location.coords.latitude}, ${location.coords.longitude}`);
             } catch (err) {
                 console.error("Failed to get user location:", err);
             }
-        });
-
-        this.signalRConnection.on("ReceiveFakeBusLocation", (message) => {
-            console.log("Coordinates:" + message);
         });
 
         this.signalRConnection.on("LocationReceived", (success) => {
@@ -52,15 +48,21 @@ export class BackendService {
         });
 
         this.signalRConnection.on("ReceivePoints", (message) => {
-            console.log("ReceivePoints message:", message, typeof message);
+            //console.log("ReceivePoints message:", message, typeof message);
             try {
                 // If message is a string, parse it. If it's already an object/array, use it directly.
                 const stops = typeof message === "string" ? JSON.parse(message) : message;
+                latestBusStops = stops; // <-- Store latest
                 backendEvents.emit("busStops", stops);
             } catch (err) {
                 console.error("Failed to parse bus stops:", err);
             }
         });
+
+        this.signalRConnection.on("ReceiveRoutePoints", (points) => {
+            console.log("Received route points:", points);
+            backendEvents.emit("routePoints", points); // <-- Add this line!
+        })
 
         this.startConnection();
     }
@@ -103,11 +105,35 @@ export class BackendService {
         }
     }
 
+    public async demandRoute(routeID: number) {
+        if (this.signalRConnection?.state === HubConnectionState.Connected) {
+            return this.signalRConnection.invoke("SendRoutePointsToFront", routeID);
+        } else {
+            throw new Error("SignalR connection not established");
+        }
+    }
+
     public isConnected(): boolean {
         return this.signalRConnection?.state === HubConnectionState.Connected;
     }
 }
 
-const [busStops, setBusStops] = useState<
-  { latitude: number; longitude: number; stopID: number; stopName: string }[]
->([]);
+// Define the RouteEntity type based on your backend
+export type RouteEntity = {
+    routeID: number;
+    routeNum: string;
+    startHour: string;
+    endHour: string;
+};
+
+// Update the bus stop type to include routes
+export type BusStop = {
+    latitude: number;
+    longitude: number;
+    stopID: number;
+    stopName: string;
+    routes: RouteEntity[];
+};
+
+// Update latestBusStops type
+export let latestBusStops: BusStop[] = [];
