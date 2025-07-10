@@ -105,9 +105,9 @@ export class BackendService {
         }
     }
 
-    public async demandRoute(routeID: number) {
+    public async demandRoute(routeID: number, stopID: number) {
         if (this.signalRConnection?.state === HubConnectionState.Connected) {
-            return this.signalRConnection.invoke("SendRoutePointsToFront", routeID);
+            return this.signalRConnection.invoke("SendRoutePointsToFront", routeID, stopID);
         } else {
             throw new Error("SignalR connection not established");
         }

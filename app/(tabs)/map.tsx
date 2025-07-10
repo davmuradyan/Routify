@@ -173,7 +173,7 @@ const Map = () => {
                     onPress={() => {
                       setModalVisible(false);
                       console.log("Clicked route:", route.routeID);
-                      backendServiceRef.current?.demandRoute(route.routeID)
+                      backendServiceRef.current?.demandRoute(route.routeID, selectedStop.stopID)
                     }}
                     style={{
                       paddingVertical: 8,

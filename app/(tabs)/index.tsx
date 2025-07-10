@@ -15,9 +15,9 @@ type Translations = {
 };
 
 const translations: Translations = {
-  en: { welcome: 'Welcome to\nProjectName!', howToUse: 'How to use?'},
-  ru: { welcome: 'Добро пожаловать\n в ProjectName!', howToUse: 'Как использовать?'},
-  hy: { welcome: 'Բարի գալուստ\nProjectName!', howToUse: 'Ինչպե՞ս օգտվել'},
+  en: { welcome: 'Welcome to\nRoutify!', howToUse: 'How to use?'},
+  ru: { welcome: 'Добро пожаловать\n в Рутифай!', howToUse: 'Как использовать?'},
+  hy: { welcome: 'Բարի գալուստ\nՌութիֆայ', howToUse: 'Ինչպե՞ս օգտվել'},
 };
 
 const flags = {

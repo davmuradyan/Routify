@@ -6,6 +6,7 @@ import TabBarBackground from '@/components/ui/TabBarBackground';
 import { LanguageProvider, LanguageContext } from '../context/LanguageContext';
 import Feather from '@expo/vector-icons/Feather';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -34,7 +35,7 @@ function TabLayout() {
         },
         headerTitle: () => (
           <View style={{ justifyContent: 'center', alignItems: 'flex-start' }}>
-            <Text style={{ fontSize: 10, color: '#757575' }}>Project Name</Text>
+            <Text style={{ fontSize: 10, color: '#757575' }}>Routify</Text>
             <Text style={{ fontSize: 15, color: 'black', fontWeight: 'bold' }}>
               {route.name === 'index' ? translations[language]?.settings :
                route.name === 'map' ? translations[language]?.map :
@@ -87,8 +88,10 @@ function TabLayout() {
 
 export default function RootLayout() {
   return (
-    <LanguageProvider>
-      <TabLayout />
-    </LanguageProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <LanguageProvider>
+        <TabLayout />
+      </LanguageProvider>
+    </GestureHandlerRootView>
   );
 }

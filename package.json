@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
+    "@gorhom/bottom-sheet": "^5.1.6",
     "@mapbox/polyline": "^1.2.1",
     "@microsoft/signalr": "^8.0.7",
     "@react-native-async-storage/async-storage": "^2.1.2",
