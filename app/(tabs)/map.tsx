@@ -15,7 +15,7 @@ const Map = () => {
     longitude: 0,
     heading: undefined,
   });
-  const [routePoints, setRoutePoints] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [routePoints, setRoutePoints] = useState<{ latitude: number; longitude: number; isStop: Boolean }[]>([]);
   const [busStops, setBusStops] = useState<BusStop[]>([]);
   const [selectedStop, setSelectedStop] = useState<BusStop | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
