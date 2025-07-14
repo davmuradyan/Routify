@@ -16,8 +16,8 @@ type Translations = {
 
 const translations: Translations = {
   en: { welcome: 'Welcome to\nRoutify!', howToUse: 'How to use?'},
-  ru: { welcome: 'Добро пожаловать\n в Рутифай!', howToUse: 'Как использовать?'},
-  hy: { welcome: 'Բարի գալուստ\nՌութիֆայ', howToUse: 'Ինչպե՞ս օգտվել'},
+  ru: { welcome: 'Добро пожаловать\n в Routify!', howToUse: 'Как использовать?'},
+  hy: { welcome: 'Բարի գալուստ\nRoutify', howToUse: 'Ինչպե՞ս օգտվել'},
 };
 
 const flags = {
